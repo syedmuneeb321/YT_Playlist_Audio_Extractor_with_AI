@@ -58,11 +58,11 @@ def reduce_filename(filename: str) -> str:
         6. Use common abbreviations
         7. Pick only the MOST IMPORTANT words from the filename
         8. If filename is very long, choose only 3-4 main topics
+        9. If filename is unit,part ..etc you must add at the end
         
         Example:
-        Input: "English US Course Level 1 Unit 1"
-        Output: "eng_lvl1_unit1"
-        
+        Input: "[name] unit 1"
+        Output: "[abrivation]_unit_1"
         Input: "Advanced Python Programming Tutorial Chapter 5"
         Output: "adv_python_ch5"
         
@@ -96,5 +96,102 @@ def reduce_filename(filename: str) -> str:
     
     return reduced_name
 
+
+
+
+zip_buffer = io.BytesIO()
+
+def download_audio_from_playlist(playlist_url, start, end, download_path, audio_path):
+    if not os.path.exists(download_path):
+        os.makedirs(download_path)
+
+    if not os.path.exists(audio_path):
+        os.makedirs(audio_path)
+
+    playlist = Playlist(playlist_url)
+    videos = playlist.video_urls
+    st.write(f"Total videos in playlist: {len(videos)}")
+
+    if end > len(videos):
+        end = len(videos)
+
+    ydl_opts = {
+        'outtmpl': os.path.join(download_path, '%(title)s.%(ext)s'),
+        'format': 'bestaudio'
+    }
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        for i in range(start-1, end):
+            video_url = videos[i]
+            st.write(f"🔻 Downloading audio {i+1}: {video_url}")
+
+            try:
+                ydl.download([video_url])
+            except Exception as e:
+                st.error(f"❌ Failed to download video {i+1}: {e}")
+
+    for file in os.listdir(download_path):
+        if file.endswith(".webm") or file.endswith(".m4a"):
+            input_path = os.path.join(download_path, file)
+            output_name = reduce_filename(os.path.splitext(file)[0]) + ".mp3"
+            output_path = os.path.join(audio_path, output_name)
+
+            st.write(f"🎵 Converting {file} to mp3...")
+
+            try:
+                clip = AudioFileClip(input_path)
+                clip.write_audiofile(output_path)
+                clip.close()
+
+                os.remove(input_path)
+                st.write(f"✅ Deleted original file: {file}")
+
+            except Exception as e:
+                st.error(f"❌ Failed to convert {file}: {e}")
+
+    st.success("🎉 All audios converted and cleaned.")
+    return True
+# -----------------------
+# 📱 Streamlit UI
+# -----------------------
+
+st.title("🎶 YouTube Playlist Audio Downloader")
+
+playlist_url = st.text_input("Enter YouTube Playlist URL:")
+start_video = st.number_input("Start Video Number:", min_value=1, value=1)
+end_video = st.number_input("End Video Number:", min_value=1, value=3)
+
+download_folder = "Downloaded_Audio"
+mp3_folder = "Converted_Audios"
+
+if st.button("🎬 Start Download"):
+    if playlist_url.strip() == "":
+        st.error("Please enter a playlist URL.")
+    elif start_video > end_video:
+        st.error("Start video number must be less than or equal to End video number.")
+    else:
+        done = download_audio_from_playlist(playlist_url, start_video, end_video, download_folder, mp3_folder)
+        st.success("✅ Done! Check your Converted_Audios folder.")
+        if done:
+            with zipfile.ZipFile(zip_buffer,'w') as zipf:
+                for file in os.listdir(mp3_folder):
+                    if file.endswith(".mp3"):
+                        file_path = os.path.join(mp3_folder,file)
+                        zipf.write(file_path,arcname=file)
+            zip_buffer.seek(0)
+
+            is_donwloaded = st.download_button(
+                label="⬇️ Download All Audios as ZIP",
+                data=zip_buffer,
+                file_name="converted_mp3.zip",
+                mime="application/zip"
+            )
+
+            # If button clicked, delete files
+            if is_donwloaded:
+                for file in os.listdir(mp3_folder):
+                    if file.endswith(".mp3"):
+                        os.remove(os.path.join(mp3_folder, file))
+                st.success("✅ All audio files deleted after download.")
 
 

@@ -9,3 +9,5 @@ wheels/
 # Virtual environments
 .venv
 .env
+Converted_Audios
+Downloaded_Audio
